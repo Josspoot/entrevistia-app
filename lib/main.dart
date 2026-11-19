@@ -23,7 +23,7 @@ class EntrevistIAApp extends StatelessWidget {
     return MaterialApp(
       title: 'EntrevistIA',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
+      theme: AppTheme.light,
       initialRoute: '/login',
       routes: {
         '/login': (_) => const LoginScreen(),

@@ -35,7 +35,7 @@ class OrbWidgetState extends State<OrbWidget>
 
   // ── Estado visual ────────────────────────────────────
   _OrbState _state = _OrbState.idle;
-  Color _glowColor = AppColors.primary;
+  Color _glowColor = AppColors.primaryLight;
 
   @override
   void initState() {
@@ -50,7 +50,7 @@ class OrbWidgetState extends State<OrbWidget>
     // Rotación del gradiente
     _rotateCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3000),
+      duration: const Duration(milliseconds: 9000),
     )..repeat();
 
     // Flash de resultado (success / fail)
@@ -71,13 +71,12 @@ class OrbWidgetState extends State<OrbWidget>
   void setLoading(bool loading) {
     setState(() {
       _state = loading ? _OrbState.loading : _OrbState.idle;
-      _glowColor = AppColors.primary;
+      _glowColor = AppColors.primaryLight;
     });
-    if (loading) {
-      _rotateCtrl.duration = const Duration(milliseconds: 1200);
-    } else {
-      _rotateCtrl.duration = const Duration(milliseconds: 3000);
-    }
+    // Las manchas se mueven más rápido mientras carga.
+    // repeat() reinicia el ciclo para aplicar la nueva duración.
+    _rotateCtrl.duration = Duration(milliseconds: loading ? 2500 : 9000);
+    _rotateCtrl.repeat();
   }
 
   Future<void> triggerSuccess() async {
@@ -90,7 +89,7 @@ class OrbWidgetState extends State<OrbWidget>
     if (!mounted) return;
     setState(() {
       _state = _OrbState.idle;
-      _glowColor = AppColors.primary;
+      _glowColor = AppColors.primaryLight;
     });
   }
 
@@ -105,7 +104,7 @@ class OrbWidgetState extends State<OrbWidget>
     if (!mounted) return;
     setState(() {
       _state = _OrbState.idle;
-      _glowColor = AppColors.primary;
+      _glowColor = AppColors.primaryLight;
     });
   }
 
@@ -150,6 +149,10 @@ class OrbWidgetState extends State<OrbWidget>
                   rotation: _rotateCtrl.value * 2 * pi,
                   glowColor: _glowColor,
                   glowOpacity: glowOpacity,
+                  tint: _state == _OrbState.success || _state == _OrbState.fail
+                      ? _glowColor
+                      : null,
+                  tintStrength: 0.45 * sin(_resultCtrl.value * pi),
                   isLoading: _state == _OrbState.loading,
                 ),
               ),
@@ -174,71 +177,136 @@ class OrbWidgetState extends State<OrbWidget>
 enum _OrbState { idle, loading, success, fail }
 
 // ── Painter ──────────────────────────────────────────────
+/// Una mancha de color que orbita dentro de la esfera.
+class _Blob {
+  final Color color;
+  final double orbit; // distancia al centro (fracción del radio)
+  final double size; // tamaño de la mancha (fracción del radio)
+  final int speed; // vueltas por ciclo; entero para que el loop no salte
+  final double phase; // ángulo inicial
+
+  const _Blob(this.color, this.orbit, this.size, this.speed, this.phase);
+}
+
+// Orden = orden de dibujo: primero los azules (fondo), al final los vivos.
+const _blobs = [
+  _Blob(AppColors.primaryDark, 0.70, 0.45, 1, 1.0),
+  _Blob(AppColors.primary, 0.60, 0.45, -1, 2.4),
+  _Blob(AppColors.sky, 0.55, 0.38, 2, 4.0),
+  _Blob(AppColors.lilac, 0.55, 0.40, -1, 3.6),
+  _Blob(AppColors.mint, 0.50, 0.38, 1, 5.3),
+  _Blob(AppColors.secondary, 0.38, 0.42, -1, 0.2),
+  _Blob(AppColors.tertiary, 0.55, 0.26, 1, 0.9),
+];
+
 class _OrbPainter extends CustomPainter {
   final double rotation;
   final Color glowColor;
   final double glowOpacity;
   final bool isLoading;
+  final Color? tint;
+  final double tintStrength;
 
   _OrbPainter({
     required this.rotation,
     required this.glowColor,
     required this.glowOpacity,
     required this.isLoading,
+    this.tint,
+    this.tintStrength = 0,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2;
+    final orbRadius = radius * 0.75;
+    final orbRect = Rect.fromCircle(center: center, radius: orbRadius);
 
     // ── Glow exterior ────────────────────────────────
     final glowPaint = Paint()
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.4)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, radius * 0.25)
       ..color = glowColor.withValues(alpha: glowOpacity);
-    canvas.drawCircle(center, radius * 0.85, glowPaint);
+    canvas.drawCircle(center, orbRadius * 1.02, glowPaint);
 
-    // ── Gradiente principal ──────────────────────────
-    final gradientPaint = Paint()
-      ..shader = SweepGradient(
-        center: Alignment.center,
-        startAngle: rotation,
-        endAngle: rotation + 2 * pi,
-        colors: [
-          AppColors.primary,
-          AppColors.secondary,
-          AppColors.primaryLight,
-          AppColors.primary,
-        ],
-        stops: const [0.0, 0.33, 0.66, 1.0],
-      ).createShader(
-        Rect.fromCircle(center: center, radius: radius * 0.75),
+    // Todo lo que sigue se recorta a la esfera
+    canvas.save();
+    canvas.clipPath(Path()..addOval(orbRect));
+
+    // ── Base: periwinkle claro arriba, cobalto abajo ─
+    canvas.drawRect(
+      orbRect,
+      Paint()
+        ..shader = const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [AppColors.lilac, AppColors.primaryLight, AppColors.primary],
+        ).createShader(orbRect),
+    );
+
+    // ── Manchas de color difuminadas ─────────────────
+    for (final b in _blobs) {
+      final angle = rotation * b.speed + b.phase;
+      final pos = center +
+          Offset(cos(angle), sin(angle)) * (b.orbit * orbRadius);
+      canvas.drawCircle(
+        pos,
+        b.size * orbRadius,
+        Paint()
+          ..color = b.color
+          ..maskFilter = MaskFilter.blur(BlurStyle.normal, orbRadius * 0.16),
       );
-    canvas.drawCircle(center, radius * 0.75, gradientPaint);
+    }
 
-    // ── Reflejo interior ─────────────────────────────
-    final innerGlow = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          Colors.white.withValues(alpha: 0.25),
-          Colors.white.withValues(alpha: 0.0),
-        ],
-      ).createShader(
-        Rect.fromCircle(
-          center: Offset(center.dx - radius * 0.2, center.dy - radius * 0.25),
-          radius: radius * 0.45,
+    // ── Tinte de resultado (verde éxito / rojo fallo) ─
+    if (tint != null && tintStrength > 0) {
+      canvas.drawRect(
+        orbRect,
+        Paint()..color = tint!.withValues(alpha: tintStrength),
+      );
+    }
+
+    // ── Brillo superior izquierdo ────────────────────
+    final highlightCenter =
+        Offset(center.dx - orbRadius * 0.35, center.dy - orbRadius * 0.4);
+    canvas.drawCircle(
+      highlightCenter,
+      orbRadius * 0.6,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            Colors.white.withValues(alpha: 0.4),
+            Colors.white.withValues(alpha: 0.0),
+          ],
+        ).createShader(
+          Rect.fromCircle(center: highlightCenter, radius: orbRadius * 0.6),
         ),
-      );
-    canvas.drawCircle(center, radius * 0.72, innerGlow);
+    );
+
+    // ── Sombra suave en el borde (da volumen) ────────
+    canvas.drawCircle(
+      center,
+      orbRadius,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            Colors.transparent,
+            AppColors.primaryDark.withValues(alpha: 0.18),
+          ],
+          stops: const [0.75, 1.0],
+        ).createShader(orbRect),
+    );
+
+    canvas.restore();
 
     // ── Anillo de carga ──────────────────────────────
     if (isLoading) {
       final ringPaint = Paint()
-        ..color = AppColors.secondary.withValues(alpha: 0.6)
+        ..color = AppColors.primary.withValues(alpha: 0.7)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5
         ..strokeCap = StrokeCap.round;
-      final ringRect = Rect.fromCircle(center: center, radius: radius * 0.85);
+      final ringRect = Rect.fromCircle(center: center, radius: radius * 0.88);
       canvas.drawArc(ringRect, rotation, pi * 1.2, false, ringPaint);
     }
   }

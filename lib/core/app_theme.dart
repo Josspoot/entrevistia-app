@@ -4,17 +4,17 @@ import 'app_colors.dart';
 class AppTheme {
   AppTheme._();
 
-  static ThemeData get dark {
+  static ThemeData get light {
     return ThemeData(
-      brightness: Brightness.dark,
+      brightness: Brightness.light,
       scaffoldBackgroundColor: AppColors.background,
       primaryColor: AppColors.primary,
 
-      colorScheme: const ColorScheme.dark(
+      colorScheme: const ColorScheme.light(
         primary: AppColors.primary,
         onPrimary: Colors.white,
         secondary: AppColors.secondary,
-        onSecondary: Colors.black,
+        onSecondary: AppColors.textPrimary,
         tertiary: AppColors.tertiary,
         surface: AppColors.surface,
         onSurface: AppColors.textPrimary,
@@ -27,6 +27,7 @@ class AppTheme {
         backgroundColor: AppColors.background,
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: true,
         titleTextStyle: TextStyle(
           color: AppColors.textPrimary,
@@ -38,13 +39,17 @@ class AppTheme {
       // ── Inputs ───────────────────────────────────────
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceLight,
+        fillColor: AppColors.surface,
         hintStyle: const TextStyle(color: AppColors.textHint),
         prefixIconColor: AppColors.textSecondary,
         suffixIconColor: AppColors.textSecondary,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.border),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -69,6 +74,9 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primary,
           foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.6),
+          disabledForegroundColor: Colors.white,
+          elevation: 0,
           minimumSize: const Size(double.infinity, 52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -82,15 +90,20 @@ class AppTheme {
 
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.secondary,
+          foregroundColor: AppColors.primary,
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
 
+      // ── Diálogos ─────────────────────────────────────
+      dialogTheme: const DialogThemeData(
+        backgroundColor: AppColors.surface,
+      ),
+
       // ── Snack Bar ────────────────────────────────────
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: AppColors.surface,
-        contentTextStyle: const TextStyle(color: AppColors.textPrimary),
+        backgroundColor: AppColors.textPrimary,
+        contentTextStyle: const TextStyle(color: Colors.white),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
