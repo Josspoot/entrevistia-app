@@ -2,13 +2,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_colors.dart';
-import '../../../shared/orb/orb_widget.dart';
+import '../../../shared/character/blob_character.dart';
 import '../../home/screens/home_screen.dart';
 
 /// Login seguro según OWASP:
 /// - Solo se valida que los campos no estén vacíos.
 /// - Ante cualquier error de Firebase se muestra UN mensaje global.
-/// - Animaciones del orbe: éxito y fallo.
+/// - Personaje blob: sigue el cursor del correo, piensa mientras carga,
+///   niega al fallar y asiente al entrar.
 /// - CircularProgressIndicator mientras Firebase responde.
 /// - Navigator.pushReplacement al catálogo en éxito.
 class LoginScreen extends StatefulWidget {
@@ -22,7 +23,27 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
 
-  final _orbKey = GlobalKey<OrbWidgetState>();
+  final _characterKey = GlobalKey<BlobCharacterState>();
+  final _emailFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    // El personaje sigue al cursor mientras se escribe el correo
+    _emailCtrl.addListener(_followEmailCursor);
+    _emailFocus.addListener(() {
+      if (_emailFocus.hasFocus) {
+        _followEmailCursor();
+      } else {
+        _characterKey.currentState?.lookCenter();
+      }
+    });
+  }
+
+  void _followEmailCursor() {
+    if (!_emailFocus.hasFocus) return;
+    _characterKey.currentState?.followText(_emailCtrl);
+  }
 
   bool _isObscure = true;
   bool _isLoading = false;
@@ -38,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() {
         _errorMessage = 'Completa todos los campos.';
       });
-      _orbKey.currentState?.triggerFail();
+      _characterKey.currentState?.shakeNo();
       return;
     }
 
@@ -46,7 +67,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
-    _orbKey.currentState?.setLoading(true);
+    _characterKey.currentState?.setThinking(true);
     FocusScope.of(context).unfocus();
 
     try {
@@ -60,10 +81,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
       // ── Éxito ──────────────────────────────────────
       if (!mounted) return;
-      _orbKey.currentState?.setLoading(false);
       setState(() => _isLoading = false);
+      _characterKey.currentState?.setThinking(false);
 
-      await _orbKey.currentState?.triggerSuccess();
+      // "Sí" con la cabeza antes de entrar
+      await _characterKey.currentState?.nodYes();
 
       if (!mounted) return;
       Navigator.pushReplacement(
@@ -73,13 +95,13 @@ class _LoginScreenState extends State<LoginScreen> {
     } on FirebaseAuthException {
       // ── Fallo: mensaje global único ────────────────
       if (!mounted) return;
-      _orbKey.currentState?.setLoading(false);
       setState(() {
         _isLoading = false;
         _errorMessage =
             'Credenciales inválidas. Verifica tu correo y contraseña.';
       });
-      _orbKey.currentState?.triggerFail();
+      // "No" con la cabeza
+      _characterKey.currentState?.shakeNo();
     }
   }
 
@@ -95,8 +117,8 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const SizedBox(height: 40),
 
-              // ── Orbe ──────────────────────────────────
-              OrbWidget(key: _orbKey, size: 160),
+              // ── Personaje ─────────────────────────────
+              BlobCharacter(key: _characterKey, size: 170),
 
               const SizedBox(height: 12),
 
@@ -118,6 +140,7 @@ class _LoginScreenState extends State<LoginScreen> {
               // ── Email ─────────────────────────────────
               TextField(
                 controller: _emailCtrl,
+                focusNode: _emailFocus,
                 keyboardType: TextInputType.emailAddress,
                 textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(
@@ -303,6 +326,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _emailFocus.dispose();
     super.dispose();
   }
 }
