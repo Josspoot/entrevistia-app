@@ -41,7 +41,16 @@ class BlobLook {
     return BlobLook('blob-${r.nextInt(1000000)}', head, eye);
   }
 
-  static final BlobLook session = BlobLook.random();
+  /// Misma forma, otro color de la paleta (distinto al actual).
+  BlobLook recolored(Random r) {
+    final options = _colors.where((c) => c.$1 != head).toList();
+    final (newHead, newEye) = options[r.nextInt(options.length)];
+    return BlobLook(seed, newHead, newEye);
+  }
+
+  /// Blob de esta sesión. Cambia de color al tocarlo y las demás
+  /// pantallas lo heredan.
+  static BlobLook session = BlobLook.random();
 }
 
 /// Personaje de EntrevistIA hecho con blobatar (https://blobatar.dev, MIT).
@@ -54,7 +63,7 @@ class BlobLook {
 ///   setThinking(b)   → expresión "pensando" mientras carga
 ///   nodYes()         → feliz + asiente (arriba/abajo): "sí"
 ///   shakeNo()        → triste + niega (izquierda/derecha): "no"
-///   tocarlo          → salta con una expresión al azar
+///   tocarlo          → efecto gelatina + nuevo color y expresión al azar
 ///   mouse encima     → se levanta un poco (web / escritorio)
 ///
 /// Uso:
@@ -75,18 +84,20 @@ class BlobCharacter extends StatefulWidget {
 
 class BlobCharacterState extends State<BlobCharacter>
     with TickerProviderStateMixin {
-  // Expresiones posibles al tocarlo
-  static const _reactions = [surprised, love, wink, happy, shy, smug, scared];
+  // Expresiones posibles al tocarlo (love, shy y mad traen su propio tinte)
+  static const _reactions = [
+    surprised, love, wink, happy, shy, smug, scared, mad,
+  ];
   final _random = Random();
 
-  late final BlobLook _look;
-  late final AnimatedBlobatarRenderer _renderer;
+  late BlobLook _look;
+  late AnimatedBlobatarRenderer _renderer;
 
   // Reloj que repinta cada cuadro (respira, parpadea, etc.)
   late final AnimationController _clock;
   // Transición suave entre expresiones
   late final AnimationController _morph;
-  // Gestos "sí" / "no" / salto
+  // Gestos "sí" / "no" / gelatina
   late final AnimationController _gestureCtrl;
   // Mouse encima (web / escritorio)
   late final AnimationController _hover;
@@ -108,13 +119,7 @@ class BlobCharacterState extends State<BlobCharacter>
   void initState() {
     super.initState();
     _look = widget.look ?? BlobLook.session;
-    _renderer = AnimatedBlobatarRenderer(
-      name: _look.seed,
-      options: BlobatarOptions(
-        palette: {'head': _hex(_look.head), 'eye': _hex(_look.eye)},
-        contrast: false,
-      ),
-    );
+    _renderer = _makeRenderer(_look);
     _fromHead = _toHead = _look.head;
     _fromEye = _toEye = _look.eye;
 
@@ -182,11 +187,27 @@ class BlobCharacterState extends State<BlobCharacter>
     if (mounted) _setExpression(_resting);
   }
 
-  /// Al tocarlo: salta con una expresión al azar y regresa.
+  /// Blobatar calcula los colores de cada expresión a partir de la paleta
+  /// del renderer, así que para cambiar de color creamos uno nuevo
+  /// (misma semilla = misma forma).
+  AnimatedBlobatarRenderer _makeRenderer(BlobLook look) =>
+      AnimatedBlobatarRenderer(
+        name: look.seed,
+        options: BlobatarOptions(
+          palette: {'head': _hex(look.head), 'eye': _hex(look.eye)},
+          contrast: false,
+        ),
+      );
+
+  /// Al tocarlo: rebota como gelatina, cambia de color y de expresión.
   Future<void> _onTap() async {
     if (_gesture != null) return; // no interrumpir un "sí" o "no"
+    _look = _look.recolored(_random);
+    if (widget.look == null) BlobLook.session = _look;
+    // setState: el painter se crea en build() con el renderer nuevo
+    setState(() => _renderer = _makeRenderer(_look));
     _setExpression(_reactions[_random.nextInt(_reactions.length)]);
-    await _play(_Gesture.hop);
+    await _play(_Gesture.squish);
     await Future.delayed(const Duration(milliseconds: 600));
     if (mounted && _gesture == null) _setExpression(_resting);
   }
@@ -194,7 +215,7 @@ class BlobCharacterState extends State<BlobCharacter>
   Future<void> _play(_Gesture gesture) async {
     _gesture = gesture;
     _gestureCtrl.duration = Duration(
-      milliseconds: gesture == _Gesture.hop ? 500 : 1200,
+      milliseconds: gesture == _Gesture.squish ? 700 : 1200,
     );
     await _gestureCtrl.forward(from: 0);
     _gesture = null;
@@ -249,9 +270,9 @@ class BlobCharacterState extends State<BlobCharacter>
         bob = bob + wave * 5;
         saccade = (0, wave * 4);
         wrap = _noWrap;
-      case _Gesture.hop:
-        // Un salto hacia arriba
-        bob = bob - sin(g * pi) * 12;
+      case _Gesture.squish:
+        // La gelatina se dibuja en build() con Transform
+        break;
       case null:
         break;
     }
@@ -285,13 +306,28 @@ class BlobCharacterState extends State<BlobCharacter>
       onExit: (_) => _hover.reverse(),
       child: GestureDetector(
         onTap: _onTap,
-        child: SizedBox.square(
-          dimension: widget.size,
-          child: CustomPaint(
-            painter: AnimatedBlobatarPainter(
-              renderer: _renderer,
-              frameBuilder: _frame,
-              repaint: _clock,
+        child: AnimatedBuilder(
+          animation: _gestureCtrl,
+          builder: (context, child) {
+            if (_gesture != _Gesture.squish) return child!;
+            // Gelatina: se aplasta a lo ancho y rebota cada vez menos.
+            // sin() oscila y (1 - t) apaga el rebote hasta quedar quieto.
+            final t = _gestureCtrl.value;
+            final wobble = sin(t * pi * 4) * (1 - t) * 0.14;
+            return Transform(
+              alignment: Alignment.bottomCenter, // apoyado en su base
+              transform: Matrix4.diagonal3Values(1 + wobble, 1 - wobble, 1),
+              child: child,
+            );
+          },
+          child: SizedBox.square(
+            dimension: widget.size,
+            child: CustomPaint(
+              painter: AnimatedBlobatarPainter(
+                renderer: _renderer,
+                frameBuilder: _frame,
+                repaint: _clock,
+              ),
             ),
           ),
         ),
@@ -317,4 +353,4 @@ class BlobCharacterState extends State<BlobCharacter>
       Color(int.parse(hex.replaceFirst('#', ''), radix: 16) | 0xFF000000);
 }
 
-enum _Gesture { yes, no, hop }
+enum _Gesture { yes, no, squish }

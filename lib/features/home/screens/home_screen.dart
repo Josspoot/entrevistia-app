@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../../../shared/orb/orb_widget.dart';
+import '../../../shared/character/blob_character.dart';
 
 /// Pantalla placeholder post-login.
 /// Se reemplazará por el catálogo de vacantes conectado a Spring Boot.
@@ -35,7 +35,8 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const OrbWidget(size: 120),
+            // Tócalo: reacciona con una expresión al azar
+            const BlobCharacter(size: 140),
             const SizedBox(height: 24),
             Text(
               '¡Bienvenido!',

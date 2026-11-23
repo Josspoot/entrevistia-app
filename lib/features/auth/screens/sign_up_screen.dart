@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/app_colors.dart';
-import '../../../shared/orb/orb_widget.dart';
+import '../../../shared/character/blob_character.dart';
 
 /// Pantalla de registro con validaciones visibles por campo.
 ///
@@ -23,7 +23,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  final _orbKey = GlobalKey<OrbWidgetState>();
+  final _characterKey = GlobalKey<BlobCharacterState>();
+  final _emailFocus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    // Igual que en el login: el blob sigue al cursor del correo
+    _emailCtrl.addListener(_followEmailCursor);
+    _emailFocus.addListener(() {
+      if (_emailFocus.hasFocus) {
+        _followEmailCursor();
+      } else {
+        _characterKey.currentState?.lookCenter();
+      }
+    });
+  }
+
+  void _followEmailCursor() {
+    if (!_emailFocus.hasFocus) return;
+    _characterKey.currentState?.followText(_emailCtrl);
+  }
 
   bool _isObscure = true;
   bool _isObscureConfirm = true;
@@ -74,12 +94,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   Future<void> _onSignUp() async {
     if (!_formKey.currentState!.validate()) {
-      _orbKey.currentState?.triggerFail();
+      _characterKey.currentState?.shakeNo();
       return;
     }
 
     setState(() => _isLoading = true);
-    _orbKey.currentState?.setLoading(true);
+    _characterKey.currentState?.setThinking(true);
     FocusScope.of(context).unfocus();
 
     try {
@@ -89,9 +109,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
       );
 
       if (!mounted) return;
-      _orbKey.currentState?.setLoading(false);
+      _characterKey.currentState?.setThinking(false);
       setState(() => _isLoading = false);
-      await _orbKey.currentState?.triggerSuccess();
+      await _characterKey.currentState?.nodYes();
 
       if (!mounted) return;
       // Cerrar sesión para que inicie desde el login
@@ -106,9 +126,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
       Navigator.pop(context); // Volver al login
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      _orbKey.currentState?.setLoading(false);
+      _characterKey.currentState?.setThinking(false);
       setState(() => _isLoading = false);
-      _orbKey.currentState?.triggerFail();
+      _characterKey.currentState?.shakeNo();
 
       // Aquí SÍ se permiten mensajes específicos (sección 3.1 B)
       final msg = switch (e.code) {
@@ -141,7 +161,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 24),
-                OrbWidget(key: _orbKey, size: 120),
+                BlobCharacter(key: _characterKey, size: 130),
                 const SizedBox(height: 24),
 
                 // ── Reglas visibles ─────────────────────
@@ -190,6 +210,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 // ── Correo ──────────────────────────────
                 TextFormField(
                   controller: _emailCtrl,
+                  focusNode: _emailFocus,
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   validator: _validateEmail,
@@ -274,6 +295,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
+    _emailFocus.dispose();
     super.dispose();
   }
 }
