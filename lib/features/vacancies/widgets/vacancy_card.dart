@@ -8,8 +8,9 @@ import '../models/vacancy.dart';
 /// stock (plazas) y categoría (área).
 class VacancyCard extends StatelessWidget {
   final Vacancy vacancy;
+  final VoidCallback? onTap;
 
-  const VacancyCard({super.key, required this.vacancy});
+  const VacancyCard({super.key, required this.vacancy, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -17,61 +18,74 @@ class VacancyCard extends StatelessWidget {
     return Card(
       elevation: 0,
       color: AppColors.surface,
+      clipBehavior:
+          Clip.antiAlias, // para que el efecto del toque respete las esquinas
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
         side: const BorderSide(color: AppColors.border),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _CompanyInitial(company: vacancy.company),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(vacancy.title,
-                          style: text.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      Text('${vacancy.company} · ${vacancy.location}',
-                          style: text.bodySmall
-                              ?.copyWith(color: AppColors.textSecondary)),
-                    ],
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _CompanyInitial(company: vacancy.company),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          vacancy.title,
+                          style: text.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${vacancy.company} · ${vacancy.location}',
+                          style: text.bodySmall?.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Text(
-              '${formatSalary(vacancy.salary)} / mes',
-              style: text.titleMedium?.copyWith(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w800,
+                ],
               ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (vacancy.category != null)
-                  _Tag(vacancy.category!.name, AppColors.lilac),
-                _Tag(vacancy.mode, AppColors.mint),
-                _Tag(
-                  vacancy.openings == 1
-                      ? '1 plaza'
-                      : '${vacancy.openings} plazas',
-                  vacancy.openings == 0 ? AppColors.border : AppColors.secondary,
+              const SizedBox(height: 14),
+              Text(
+                '${formatSalary(vacancy.salary)} / mes',
+                style: text.titleMedium?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w800,
                 ),
-              ],
-            ),
-          ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (vacancy.category != null)
+                    _Tag(vacancy.category!.name, AppColors.lilac),
+                  _Tag(vacancy.mode, AppColors.mint),
+                  _Tag(
+                    vacancy.openings == 1
+                        ? '1 plaza'
+                        : '${vacancy.openings} plazas',
+                    vacancy.openings == 0
+                        ? AppColors.border
+                        : AppColors.secondary,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

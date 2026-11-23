@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../../../core/app_colors.dart';
 import '../../../shared/character/blob_character.dart';
 import '../../vacancies/models/vacancy.dart';
+import '../../vacancies/screens/vacancy_detail_screen.dart';
+import '../../vacancies/screens/vacancy_form_screen.dart';
 import '../../vacancies/services/vacancy_service.dart';
 import '../../vacancies/widgets/vacancy_card.dart';
 
@@ -84,6 +86,24 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadVacancies();
   }
 
+  /// Abre el detalle; si ahí se editó o eliminó, recarga la lista.
+  Future<void> _openDetail(Vacancy vacancy) async {
+    final changed = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => VacancyDetailScreen(vacancy: vacancy)),
+    );
+    if (changed == true) _loadVacancies();
+  }
+
+  /// Abre el formulario vacío; si se creó la vacante, recarga la lista.
+  Future<void> _openCreate() async {
+    final created = await Navigator.push<Vacancy>(
+      context,
+      MaterialPageRoute(builder: (_) => const VacancyFormScreen()),
+    );
+    if (created != null) _loadVacancies();
+  }
+
   Future<void> _signOut() async {
     await FirebaseAuth.instance.signOut();
     if (!mounted) return;
@@ -103,6 +123,11 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _signOut,
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openCreate,
+        icon: const Icon(Icons.add),
+        label: const Text('Vacante'),
       ),
       body: SafeArea(
         child: Column(
@@ -178,10 +203,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return RefreshIndicator(
       onRefresh: _loadVacancies,
       child: ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        // Espacio abajo para que el botón + no tape la última tarjeta
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
         itemCount: _vacancies.length,
         separatorBuilder: (_, _) => const SizedBox(height: 12),
-        itemBuilder: (_, i) => VacancyCard(vacancy: _vacancies[i]),
+        itemBuilder: (_, i) => VacancyCard(
+          vacancy: _vacancies[i],
+          onTap: () => _openDetail(_vacancies[i]),
+        ),
       ),
     );
   }
