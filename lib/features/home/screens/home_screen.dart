@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/app_colors.dart';
+import '../../../shared/brand/brand.dart';
 import '../../../shared/character/blob_character.dart';
 import '../../vacancies/models/vacancy.dart';
 import '../../vacancies/screens/vacancy_detail_screen.dart';
@@ -20,7 +22,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   final _service = VacancyService();
   final _searchController = TextEditingController();
   Timer? _debounce;
@@ -31,6 +34,12 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _loading = true;
   String? _error;
 
+  // Entrada: el encabezado aparece y la hoja blanca sube
+  late final AnimationController _enter = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 700),
+  )..forward();
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _enter.dispose();
     _debounce?.cancel();
     _searchController.dispose();
     super.dispose();
@@ -113,43 +123,99 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('EntrevistIA'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Cerrar sesión',
-            onPressed: _signOut,
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openCreate,
-        icon: const Icon(Icons.add),
-        label: const Text('Vacante'),
-      ),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _Header(email: user?.email ?? ''),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-              child: TextField(
-                controller: _searchController,
-                onChanged: _onSearchChanged,
-                textInputAction: TextInputAction.search,
-                decoration: const InputDecoration(
-                  hintText: 'Buscar puesto…',
-                  prefixIcon: Icon(Icons.search),
-                ),
-              ),
+    final header = CurvedAnimation(
+      parent: _enter,
+      curve: const Interval(0, 0.7, curve: Curves.easeOut),
+    );
+    final sheet = CurvedAnimation(
+      parent: _enter,
+      curve: const Interval(0.15, 1, curve: Curves.easeOutCubic),
+    );
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: AppColors.night,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          foregroundColor: Colors.white,
+          centerTitle: false,
+          title: const Wordmark(fontSize: 20),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.logout),
+              tooltip: 'Cerrar sesión',
+              onPressed: _signOut,
             ),
-            if (_categories.isNotEmpty) _buildCategoryChips(),
-            Expanded(child: _buildBody()),
+            const SizedBox(width: 4),
           ],
         ),
+        extendBodyBehindAppBar: true,
+        floatingActionButton: FloatingActionButton.extended(
+          onPressed: _openCreate,
+          backgroundColor: AppColors.night,
+          foregroundColor: Colors.white,
+          icon: const Icon(Icons.add),
+          label: const Text('Vacante'),
+        ),
+        body: NightBackground(
+          child: SafeArea(
+            bottom: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: kToolbarHeight),
+                FadeTransition(
+                  opacity: header,
+                  child: _Header(
+                    email: user?.email ?? '',
+                    count: _loading || _error != null
+                        ? null
+                        : _vacancies.length,
+                  ),
+                ),
+                Expanded(
+                  // La hoja blanca sube desde abajo al entrar
+                  child: SlideTransition(
+                    position: Tween(
+                      begin: const Offset(0, 0.25),
+                      end: Offset.zero,
+                    ).animate(sheet),
+                    child: FadeTransition(opacity: sheet, child: _buildSheet()),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSheet() {
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              textInputAction: TextInputAction.search,
+              decoration: const InputDecoration(
+                hintText: 'Buscar puesto…',
+                prefixIcon: Icon(Icons.search),
+              ),
+            ),
+          ),
+          if (_categories.isNotEmpty) _buildCategoryChips(),
+          Expanded(child: _buildBody()),
+        ],
       ),
     );
   }
@@ -174,7 +240,18 @@ class _HomeScreenState extends State<HomeScreen> {
       child: ChoiceChip(
         label: Text(label),
         selected: _selectedCategoryId == id,
-        selectedColor: AppColors.secondary,
+        showCheckmark: false,
+        // Seleccionado: pastilla oscura con texto blanco
+        selectedColor: AppColors.night,
+        backgroundColor: AppColors.surface,
+        labelStyle: TextStyle(
+          fontWeight: FontWeight.w600,
+          color: _selectedCategoryId == id
+              ? Colors.white
+              : AppColors.textPrimary,
+        ),
+        side: const BorderSide(color: AppColors.border),
+        shape: const StadiumBorder(),
         onSelected: (_) => _selectCategory(id),
       ),
     );
@@ -219,35 +296,50 @@ class _HomeScreenState extends State<HomeScreen> {
 /// Saludo con el blob (tócalo: reacciona y cambia de color).
 class _Header extends StatelessWidget {
   final String email;
+  final int? count; // null mientras carga
 
-  const _Header({required this.email});
+  const _Header({required this.email, required this.count});
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          const BlobCharacter(size: 72),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('¡Hola!',
-                    style: text.headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w800)),
-                Text(email,
-                    overflow: TextOverflow.ellipsis,
-                    style: text.bodySmall
-                        ?.copyWith(color: AppColors.textSecondary)),
-                const SizedBox(height: 2),
-                Text('Encuentra una vacante y prepárate para la entrevista',
-                    style: text.bodyMedium),
+                Text(
+                  email,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.onNight,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Vacantes',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 34,
+                    fontWeight: FontWeight.w800,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  count == null
+                      ? 'Encuentra tu próxima entrevista'
+                      : '$count disponibles para practicar',
+                  style: const TextStyle(color: AppColors.onNight),
+                ),
               ],
             ),
           ),
+          const Halo(size: 120, child: BlobCharacter(size: 84)),
         ],
       ),
     );

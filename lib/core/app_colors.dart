@@ -42,4 +42,10 @@ class AppColors {
   static const Color error = Color(0xFFE5484D);
   static const Color success = Color(0xFF2BB673);
   static const Color warning = tertiary;
+
+  // ── Fondo nocturno (intro, login y encabezado del catálogo) ──
+  static const Color night = Color(0xFF0E1330);
+  static const Color nightLight = Color(0xFF1B2250);
+  // Texto secundario sobre night
+  static const Color onNight = Color(0xFFB7BEDD);
 }
