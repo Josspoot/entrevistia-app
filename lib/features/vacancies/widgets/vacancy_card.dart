@@ -34,7 +34,10 @@ class VacancyCard extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _CompanyInitial(company: vacancy.company),
+                  _CompanyLogo(
+                    company: vacancy.company,
+                    imageUrl: vacancy.imageUrl,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -104,18 +107,48 @@ String formatSalary(double salary) {
   return '\$$buffer';
 }
 
-/// Círculo con la inicial de la empresa.
-/// En el Hito 2 se cambiará por el logo guardado en Supabase (imageUrl).
-class _CompanyInitial extends StatelessWidget {
+/// Logo de la empresa guardado en Supabase Storage (bucket "productos").
+/// Mientras carga, o si no hay imagen o falla la red, muestra la inicial.
+class _CompanyLogo extends StatelessWidget {
   final String company;
+  final String? imageUrl;
 
-  const _CompanyInitial({required this.company});
+  const _CompanyLogo({required this.company, required this.imageUrl});
 
   @override
   Widget build(BuildContext context) {
-    return CircleAvatar(
-      radius: 22,
-      backgroundColor: AppColors.sky,
+    final initial = _Initial(company: company);
+    if (imageUrl == null || imageUrl!.isEmpty) return initial;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: Image.network(
+        imageUrl!,
+        width: 44,
+        height: 44,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : initial,
+        errorBuilder: (context, error, stackTrace) => initial,
+      ),
+    );
+  }
+}
+
+class _Initial extends StatelessWidget {
+  final String company;
+
+  const _Initial({required this.company});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.sky,
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Text(
         company.isEmpty ? '?' : company[0].toUpperCase(),
         style: const TextStyle(
